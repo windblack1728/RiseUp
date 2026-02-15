@@ -1,0 +1,32 @@
+from flask import request, Flask, render_template
+import pandas
+from bisect import bisect_left
+
+app = Flask(__name__, template_folder='templates')
+df = pandas.read_excel("data/tab_lhfa_boys_p_0_2.xlsx")
+
+
+@app.route('/')
+@app.route('/index/<height>/<agemonths>')
+def index(height, agemonths):
+    height = int(height)
+    agemonths = int(agemonths)
+    heights = df[df["Month"] == agemonths].iloc[0].values.tolist()[5:]
+    i = bisect_left(heights, height)
+    return "Your child's percentile:" + df.columns[min(i + 5, 19)]
+
+
+@app.route('/sample_file_upload', methods=['POST', 'GET'])
+def sample_file_upload():
+    if request.method == 'GET':
+        return render_template("index.html")
+    elif request.method == 'POST':
+        f = request.files['file']
+        print(f.read())
+        print(request.form['email'])
+        print(request.form['password'])
+        return "Форма отправлена"
+
+
+if __name__ == '__main__':
+    app.run(port=8080, host='127.0.0.1')
