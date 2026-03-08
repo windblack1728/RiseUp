@@ -16,7 +16,7 @@ def index(height, agemonths):
     i = bisect_left(heights, height)
     return "Your child's percentile:" + df.columns[min(i + 5, 19)]
 
-
+# form
 @app.route('/form', methods=['POST', 'GET'])
 def form():
     if request.method == 'GET':
