@@ -1,11 +1,9 @@
-import datetime
-
 from flask import request, Flask, render_template
 import pandas
 from bisect import bisect_left
 from datetime import date
 
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__, template_folder='templates', static_folder="static")
 df = pandas.read_excel("data/tab_lhfa_boys_p_0_2.xlsx")
 
 
@@ -19,10 +17,10 @@ def index(height, agemonths):
     return "Your child's percentile:" + df.columns[min(i + 5, 19)]
 
 
-@app.route('/sample_file_upload', methods=['POST', 'GET'])
-def sample_file_upload():
+@app.route('/form', methods=['POST', 'GET'])
+def form():
     if request.method == 'GET':
-        return render_template("index.html")
+        return render_template("form.html")
     elif request.method == 'POST':
         birth_date = date(*list(map(int, request.form['date'].split('-'))))
         months = ((date.today() - birth_date).days)//30

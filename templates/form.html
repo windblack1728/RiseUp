@@ -5,17 +5,19 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+        <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/styles.css') }}">
+
         <title>App</title>
     </head>
     <body>
         <h1>Date / height</h1>
-        <form method="post" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data" class="login_form">
             <div class="form-group">
-                <label for="class_number">Date of birth</label>
+                <label>Date of birth</label>
                 <input type="date" class="form-control" id="date" name="date">
             </div>
             <div class="form-group">
-                <label for="photo">Height</label>
+                <label>Height</label>
                 <input type="number" class="form-control" id="height" name="height">
             </div>
             <button type="submit" class="btn btn-primary">Submit</button>
