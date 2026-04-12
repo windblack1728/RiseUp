@@ -27,8 +27,12 @@ def form():
         height = int(request.form['height'])
         heights = df[df["Month"] == months].iloc[0].values.tolist()[5:]
         i = bisect_left(heights, height)
-        return "Your child's percentile:" + df.columns[min(i + 5, 19)]
+        # return "Your child's percentile:" + df.columns[min(i + 5, 19)]
+        return render_template('result.html', percentile=df.columns[min(i + 5, 19)])
 
+@app.route('/odd_even') 
+def odd_even(): 
+    return render_template('odd_even.html', number=3)
 
 if __name__ == '__main__':
     app.run(port=8080, host='127.0.0.1')
