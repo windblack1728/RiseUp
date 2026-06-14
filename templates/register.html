@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Sign up — RiseUp{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <h2 class="fw-bold mb-4">Create account</h2>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" value="{{ email }}" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password <span class="text-muted small">(min. 6 characters)</span></label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Confirm password</label>
+                        <input type="password" class="form-control" name="confirm" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100">Sign up</button>
+                </form>
+            </div>
+        </div>
+        <p class="text-center text-muted mt-3 small">
+            Already have an account? <a href="/login">Log in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

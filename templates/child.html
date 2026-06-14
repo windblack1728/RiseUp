@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}{{ child.name }} — RiseUp{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/home" class="text-decoration-none text-muted">&larr; Back to children</a>
+</div>
+
+<div class="mb-4">
+    <h2 class="fw-bold mb-1">{{ child.name }}</h2>
+    <p class="text-muted mb-0">
+        {{ 'Boy' if child.gender == 'male' else 'Girl' }}
+        &middot; Born {{ child.birthday }}
+        &middot; Age {{ child.age_display }}
+    </p>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-3">Add measurement</div>
+    <div class="card-body">
+        <form method="post" action="/child/{{ child.id }}/add" class="row g-3 align-items-end">
+            <div class="col-sm-4">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-control" name="date" required>
+            </div>
+            <div class="col-sm-4">
+                <label class="form-label">Height (cm)</label>
+                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height" required>
+            </div>
+            <div class="col-sm-4">
+                <button type="submit" class="btn btn-warning w-100">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-semibold py-3">Height history</div>
+    {% if records %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Age at measurement</th>
+                    <th>Height</th>
+                    <th>WHO percentile</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rec in records %}
+                <tr>
+                    <td>{{ rec.date }}</td>
+                    <td class="text-muted">{{ rec.age }}</td>
+                    <td><strong>{{ rec.height }} cm</strong></td>
+                    <td>
+                        {% if rec.percentile != 'N/A' %}
+                        <span class="badge bg-secondary">{{ rec.percentile }}</span>
+                        {% else %}
+                        <span class="text-muted">N/A</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-muted">No measurements recorded yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}RiseUp — Track Your Child's Growth{% endblock %}
+
+{% block content %}
+<div class="row align-items-center py-5">
+    <div class="col-lg-7">
+        <h1 class="display-4 fw-bold">Track your child's growth with confidence</h1>
+        <p class="lead text-muted mt-3">
+            RiseUp uses WHO growth standards to show how your child's height compares
+            with peers worldwide. Log measurements over time and watch the history unfold.
+        </p>
+        <div class="mt-4 d-flex gap-3 flex-wrap">
+            <a href="/form" class="btn btn-warning btn-lg px-4">Add a child</a>
+            <a href="/home" class="btn btn-outline-secondary btn-lg px-4">View children</a>
+        </div>
+    </div>
+    <div class="col-lg-5 mt-5 mt-lg-0">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="card-title fw-bold mb-3">How it works</h5>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-3">
+                        <span class="badge bg-warning text-dark me-2">1</span>
+                        Enter your child's name, birthday, gender, and height
+                    </li>
+                    <li class="mb-3">
+                        <span class="badge bg-warning text-dark me-2">2</span>
+                        See their height percentile based on WHO data
+                    </li>
+                    <li>
+                        <span class="badge bg-warning text-dark me-2">3</span>
+                        Add new measurements over time to track growth
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <p class="text-muted small mt-3 text-center">
+            Covers ages 0–19 years &middot; Boys &amp; girls &middot; WHO 2006 &amp; 2007 standards
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,3 +1,4 @@
 .env
 .vercel
 .env*
+db/riseup.db
