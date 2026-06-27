@@ -10,14 +10,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import pandas
 from bisect import bisect_left
 from datetime import date, datetime
-import sqlite3
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-change-me-in-production')
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'error'
+
+supabase: Client = create_client(
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("SUPABASE_KEY")
+)
 
 # ---------------------------------------------------------------------------
 # WHO data — loaded once at startup
@@ -35,56 +42,41 @@ df_g520 = pandas.read_excel("data/hfa-girls-perc-who2007-exp.xlsx")
 # Database helpers
 # ---------------------------------------------------------------------------
 
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect('db/riseup.db')
-        db.row_factory = sqlite3.Row
-    return db
+# def query_db(query, args=(), one=False):
+#     cur = get_db().execute(query, args)
+#     rv = cur.fetchall()
+#     cur.close()
+#     return (rv[0] if rv else None) if one else rv
 
 
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
-
-
-def query_db(query, args=(), one=False):
-    cur = get_db().execute(query, args)
-    rv = cur.fetchall()
-    cur.close()
-    return (rv[0] if rv else None) if one else rv
-
-
-def init_db():
-    with sqlite3.connect('db/riseup.db') as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS Users (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            email         TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL
-        )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS Children (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id  INTEGER,
-            name     TEXT NOT NULL,
-            birthday TEXT NOT NULL,
-            gender   TEXT NOT NULL,
-            height   REAL NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES Users(id)
-        )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS Records (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            child_id INTEGER NOT NULL,
-            height   REAL NOT NULL,
-            date     TEXT NOT NULL,
-            FOREIGN KEY (child_id) REFERENCES Children(id)
-        )''')
-        # Migration: add user_id column to existing Children tables that lack it
-        try:
-            conn.execute('ALTER TABLE Children ADD COLUMN user_id INTEGER REFERENCES Users(id)')
-        except sqlite3.OperationalError:
-            pass  # Column already exists
+# def init_db():
+#     with sqlite3.connect('db/riseup.db') as conn:
+#         conn.execute('''CREATE TABLE IF NOT EXISTS users (
+#             id            INTEGER PRIMARY KEY AUTOINCREMENT,
+#             email         TEXT NOT NULL UNIQUE,
+#             password_hash TEXT NOT NULL
+#         )''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS children (
+#             id       INTEGER PRIMARY KEY AUTOINCREMENT,
+#             user_id  INTEGER,
+#             name     TEXT NOT NULL,
+#             birthday TEXT NOT NULL,
+#             gender   TEXT NOT NULL,
+#             height   REAL NOT NULL,
+#             FOREIGN KEY (user_id) REFERENCES users(id)
+#         )''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS records (
+#             id       INTEGER PRIMARY KEY AUTOINCREMENT,
+#             child_id INTEGER NOT NULL,
+#             height   REAL NOT NULL,
+#             date     TEXT NOT NULL,
+#             FOREIGN KEY (child_id) REFERENCES children(id)
+#         )''')
+#         # Migration: add user_id column to existing children tables that lack it
+#         try:
+#             conn.execute('ALTER TABLE children ADD COLUMN user_id INTEGER REFERENCES users(id)')
+#         except sqlite3.OperationalError:
+#             pass  # Column already exists
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +91,17 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    row = query_db('SELECT * FROM Users WHERE id=?', (user_id,), one=True)
-    if row is None:
+    # row = query_db('SELECT * FROM users WHERE id=?', (user_id,), one=True)
+    row = (
+        supabase.table('users')
+        .select("*")
+        .eq("id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    if not row:
         return None
-    return User(row['id'], row['email'])
+    return User(row.data['id'], row.data['email'])
 
 
 # ---------------------------------------------------------------------------
@@ -180,13 +179,25 @@ def register():
             flash('Passwords do not match.', 'error')
             return render_template('register.html', email=email)
 
-        if query_db('SELECT id FROM Users WHERE email=?', (email,), one=True):
+        # if query_db('SELECT id FROM users WHERE email=?', (email,), one=True):
+        response = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .maybe_single()
+            .execute()
+        )
+        if response:
             flash('That email is already registered.', 'error')
             return render_template('register.html', email=email)
 
         pw_hash = generate_password_hash(password)
-        with sqlite3.connect('db/riseup.db') as conn:
-            conn.execute('INSERT INTO Users (email, password_hash) VALUES (?,?)', (email, pw_hash))
+        response = (
+            supabase.table("users")
+            .insert({"email": email, "password_hash": pw_hash})
+            .execute()
+        )
+
 
         flash('Account created — please log in.', 'success')
         return redirect(url_for('login'))
@@ -203,12 +214,19 @@ def login():
         email = request.form['email'].strip().lower()
         password = request.form['password']
 
-        row = query_db('SELECT * FROM Users WHERE email=?', (email,), one=True)
-        if row is None or not check_password_hash(row['password_hash'], password):
+        # row = query_db('SELECT * FROM users WHERE email=?', (email,), one=True)
+        row = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .maybe_single()
+            .execute()
+        )
+        if not row or not check_password_hash(row.data['password_hash'], password):
             flash('Invalid email or password.', 'error')
             return render_template('login.html', email=email)
 
-        login_user(User(row['id'], row['email']))
+        login_user(User(row.data['id'], row.data['email']))
         next_page = request.args.get('next')
         # Guard against open-redirect attacks
         if next_page and urlparse(next_page).netloc != '':
@@ -237,9 +255,16 @@ def landing():
 @app.route('/home')
 @login_required
 def home():
-    rows = query_db('SELECT * FROM Children WHERE user_id=? ORDER BY name', (current_user.id,))
+    # rows = query_db('SELECT * FROM children WHERE user_id=? ORDER BY name', (current_user.id,))
+    rows = (
+        supabase.table("children")
+        .select("*")
+        .eq("user_id", current_user.id)
+        .order("name", desc=False)
+        .execute()
+    )
     children = []
-    for row in rows:
+    for row in rows.data:
         child = dict(row)
         child['age_display'] = format_age(child['birthday'])
         children.append(child)
@@ -249,20 +274,35 @@ def home():
 @app.route('/child/<int:child_id>')
 @login_required
 def child_history(child_id):
-    child_row = query_db(
-        'SELECT * FROM Children WHERE id=? AND user_id=?',
-        (child_id, current_user.id), one=True
+    # child_row = query_db(
+    #     'SELECT * FROM children WHERE id=? AND user_id=?',
+    #     (child_id, current_user.id), one=True
+    # )
+    child_row = (
+        supabase.table("children")
+        .select("*")
+        .eq("id", child_id)
+        .eq("user_id", current_user.id)
+        .maybe_single()
+        .execute()
     )
-    if child_row is None:
+    if not child_row:
         return "Not found", 404
 
-    child = dict(child_row)
+    child = dict(child_row.data)
     child['age_display'] = format_age(child['birthday'])
     birth_date = datetime.strptime(child['birthday'], '%Y-%m-%d').date()
 
-    record_rows = query_db('SELECT * FROM Records WHERE child_id=? ORDER BY date DESC', (child_id,))
+    # record_rows = query_db('SELECT * FROM records WHERE child_id=? ORDER BY date DESC', (child_id,))
+    record_rows = (
+        supabase.table("records")
+        .select("*")
+        .eq("child_id", child_id)
+        .order("date", desc=True)
+        .execute()
+    )
     records = []
-    for rec in record_rows:
+    for rec in record_rows.data:
         try:
             rec_date = datetime.strptime(rec['date'], '%Y-%m-%d').date()
         except ValueError:
@@ -281,19 +321,49 @@ def child_history(child_id):
 @app.route('/child/<int:child_id>/add', methods=['POST'])
 @login_required
 def add_measurement(child_id):
-    child_row = query_db(
-        'SELECT * FROM Children WHERE id=? AND user_id=?',
-        (child_id, current_user.id), one=True
+    # child_row = query_db(
+    #     'SELECT * FROM children WHERE id=? AND user_id=?',
+    #     (child_id, current_user.id), one=True
+    # )
+    child_row = (
+        supabase.table("children")
+        .select("*")
+        .eq("id", child_id)
+        .eq("user_id", current_user.id)
+        .maybe_single()
+        .execute()
     )
-    if child_row is None:
+    if not child_row:
         return "Not found", 404
 
     height = float(request.form['height'])
     meas_date = request.form['date']
 
-    with sqlite3.connect('db/riseup.db') as conn:
-        conn.execute('INSERT INTO Records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
-        conn.execute('UPDATE Children SET height=? WHERE id=?', (height, child_id))
+    # with sqlite3.connect('db/riseup.db') as conn:
+    #     conn.execute('INSERT INTO records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
+    #     conn.execute('UPDATE children SET height=? WHERE id=?', (height, child_id))
+    response = (
+        supabase.table("records")
+        .insert({"child_id": child_id, "height": height, "date": meas_date})
+        .execute()
+    )
+
+    response = (
+        supabase.table("children")
+        .select("height")
+        .eq("id", child_id)
+        .single()
+        .execute()
+    )
+
+    latest_height = response.data["height"]
+    if latest_height < height:
+        response = (
+            supabase.table("children")
+            .update({"height": height})
+            .eq("id", child_id)
+            .execute()
+        )
 
     return redirect(url_for('child_history', child_id=child_id))
 
@@ -312,22 +382,33 @@ def form():
     birth_date = datetime.strptime(birthday, '%Y-%m-%d').date()
     days = (date.today() - birth_date).days
 
-    with sqlite3.connect('db/riseup.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO Children (user_id, name, birthday, gender, height) VALUES (?,?,?,?,?)',
-            (current_user.id, name, birthday, gender, height)
-        )
-        child_id = cursor.lastrowid
-        cursor.execute(
-            'INSERT INTO Records (child_id, height, date) VALUES (?,?,?)',
-            (child_id, height, date.today().strftime('%Y-%m-%d'))
-        )
+    # with sqlite3.connect('db/riseup.db') as conn:
+    #     cursor = conn.cursor()
+    #     cursor.execute(
+    #         'INSERT INTO children (user_id, name, birthday, gender, height) VALUES (?,?,?,?,?)',
+    #         (current_user.id, name, birthday, gender, height)
+    #     )
+    #     child_id = cursor.lastrowid
+    #     cursor.execute(
+    #         'INSERT INTO records (child_id, height, date) VALUES (?,?,?)',
+    #         (child_id, height, date.today().strftime('%Y-%m-%d'))
+    #     )
+    response = (
+        supabase.table("children")
+        .insert({"user_id": current_user.id, "name": name, "birthday": birthday, "gender": gender, "height": height})
+        .execute()
+    )
+    child_id = response.data[0]["id"]
+    response = (
+        supabase.table("records")
+        .insert({"child_id": child_id, "height": height, "date": date.today().strftime('%Y-%m-%d')})
+        .execute()    
+    )
 
     percentile = compute_percentile(height, days // 7, days // 30, gender)
     return render_template('result.html', name=name, height=height, percentile=percentile, child_id=child_id)
 
 
 if __name__ == '__main__':
-    init_db()
+    # init_db()
     app.run(port=8080, host='127.0.0.1', debug=True)

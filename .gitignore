@@ -1,4 +1,7 @@
 .env
-.vercel
 .env*
+.vercel
 db/riseup.db
+.venv1/
+__pycache__/
+*.pyc
