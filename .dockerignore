@@ -1,0 +1,9 @@
+.venv1/
+.git/
+.idea/
+__pycache__/
+*.pyc
+.env
+.env*
+db/riseup.db
+.vercel/
