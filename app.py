@@ -1,7 +1,7 @@
 import os
 from urllib.parse import urlparse
 
-from flask import request, Flask, render_template, g, redirect, url_for, flash
+from flask import request, Flask, render_template, g, redirect, url_for, flash, jsonify
 from flask_login import (
     LoginManager, UserMixin,
     login_user, logout_user, login_required, current_user,
@@ -12,6 +12,7 @@ from bisect import bisect_left
 from datetime import date, datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from openai import OpenAI
 
 load_dotenv()
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -24,6 +25,11 @@ login_manager.login_message_category = 'error'
 supabase: Client = create_client(
     os.environ.get("SUPABASE_URL"),
     os.environ.get("SUPABASE_KEY")
+)
+
+gemini = OpenAI(
+    api_key=os.environ.get("NEXT_PUBLIC_GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 
 # ---------------------------------------------------------------------------
@@ -104,9 +110,8 @@ def load_user(user_id):
     return User(row.data['id'], row.data['email'])
 
 
-# ---------------------------------------------------------------------------
 # Growth helpers
-# ---------------------------------------------------------------------------
+
 
 def get_df(weeks, months, gender):
     if weeks <= 13:
@@ -157,9 +162,8 @@ def format_age(birthday_str):
     return format_age_between(birth_date, date.today())
 
 
-# ---------------------------------------------------------------------------
 # Auth routes
-# ---------------------------------------------------------------------------
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -243,9 +247,8 @@ def logout():
     return redirect(url_for('landing'))
 
 
-# ---------------------------------------------------------------------------
 # App routes
-# ---------------------------------------------------------------------------
+
 
 @app.route('/')
 def landing():
@@ -408,6 +411,72 @@ def form():
     percentile = compute_percentile(height, days // 7, days // 30, gender)
     return render_template('result.html', name=name, height=height, percentile=percentile, child_id=child_id)
 
+
+@app.route('/chatbot', methods=['GET'])
+@login_required
+def chatbot():
+    return render_template('chatbot.html')
+
+
+@app.route('/chatbot/send', methods=['POST'])
+@login_required
+def chatbot_send():
+    data = request.get_json()
+    user_message = data.get('message', '').strip()
+    history = data.get('history', [])
+
+    if not user_message:
+        return jsonify({"error": "Empty message"}), 400
+
+    # Fetch all children and their records to build the system prompt
+    children_rows = supabase.table("children").select("*").eq("user_id", current_user.id).execute()
+
+    children_context = []
+    for child in children_rows.data:
+        birth_date = datetime.strptime(child['birthday'], '%Y-%m-%d').date()
+        records_rows = (
+            supabase.table("records")
+            .select("*")
+            .eq("child_id", child['id'])
+            .order("date", desc=False)
+            .execute()
+        )
+        record_lines = []
+        for rec in records_rows.data:
+            try:
+                rec_date = datetime.strptime(rec['date'], '%Y-%m-%d').date()
+            except ValueError:
+                rec_date = datetime.strptime(rec['date'], '%m-%d-%Y').date()
+            days = (rec_date - birth_date).days
+            pct = compute_percentile(rec['height'], days // 7, days // 30, child['gender']) or 'N/A'
+            record_lines.append(f"    {rec_date}: {rec['height']} cm (WHO percentile: {pct})")
+
+        age = format_age(child['birthday'])
+        records_text = "\n".join(record_lines) if record_lines else "    No records yet."
+        children_context.append(
+            f"- {child['name']} ({child['gender']}, age {age}, born {child['birthday']})\n"
+            f"  Height history:\n{records_text}"
+        )
+
+    system_prompt = (
+        "You are a warm and knowledgeable child growth assistant. "
+        "The parent has the following children registered in the RiseUp growth tracking app:\n\n"
+        + ("\n\n".join(children_context) if children_context else "  (No children added yet.)")
+        + "\n\nWHO percentiles show how the child's height compares to peers of the same age and gender. "
+        "Answer questions about growth, explain what percentiles mean, and give general guidance. "
+        "Always advise consulting a pediatrician for medical concerns."
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+
+    response = gemini.chat.completions.create(
+        model="gemini-2.5-flash",
+        messages=messages,
+    )
+
+    return jsonify({"reply": response.choices[0].message.content})
 
 if __name__ == '__main__':
     # init_db()

@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Growth Assistant – RiseUp{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="height: calc(100vh - 120px);">
+
+    <h5 class="mb-3 fw-semibold">Growth Assistant</h5>
+
+    <!-- Message list -->
+    <div id="messages" class="flex-grow-1 overflow-y-auto d-flex flex-column gap-2 mb-3 pe-1">
+        <div class="align-self-start bg-white border rounded-3 px-3 py-2" style="max-width:75%">
+            Hi! I'm your child growth assistant. I have access to your children's height records and WHO growth data.
+            Ask me anything about their growth, percentiles, or what to expect next!
+        </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="d-flex gap-2 pb-2">
+        <textarea id="user-input"
+            class="form-control rounded-pill"
+            placeholder="Ask about your child's growth…"
+            rows="1"
+            style="resize:none; overflow:hidden; padding-top:10px; padding-bottom:10px;"></textarea>
+        <button id="send-btn" class="btn btn-warning px-4 rounded-pill fw-semibold">Send</button>
+    </div>
+
+</div>
+
+<script>
+    const messagesEl = document.getElementById('messages');
+    const inputEl    = document.getElementById('user-input');
+    const sendBtn    = document.getElementById('send-btn');
+
+    const history = [];
+
+    function appendMessage(role, text) {
+        const div = document.createElement('div');
+        if (role === 'user') {
+            div.className = 'align-self-end bg-warning rounded-3 px-3 py-2';
+        } else {
+            div.className = 'align-self-start bg-white border rounded-3 px-3 py-2 text-muted fst-italic';
+        }
+        div.style.maxWidth = '75%';
+        div.style.whiteSpace = 'pre-wrap';
+        div.textContent = text;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+    }
+
+    async function sendMessage() {
+        const text = inputEl.value.trim();
+        if (!text || sendBtn.disabled) return;
+
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        sendBtn.disabled = true;
+
+        appendMessage('user', text);
+        const typingEl = appendMessage('assistant', 'Thinking…');
+
+        try {
+            const res  = await fetch('/chatbot/send', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ message: text, history }),
+            });
+            const data  = await res.json();
+            const reply = data.reply || data.error || 'Something went wrong.';
+
+            typingEl.textContent = reply;
+            typingEl.classList.remove('text-muted', 'fst-italic');
+
+            history.push({ role: 'user',      content: text  });
+            history.push({ role: 'assistant', content: reply });
+        } catch {
+            typingEl.textContent = 'Network error — please try again.';
+            typingEl.classList.remove('fst-italic');
+        }
+
+        sendBtn.disabled = false;
+        inputEl.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    inputEl.addEventListener('input', () => {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+    });
+</script>
+{% endblock %}
