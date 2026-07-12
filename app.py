@@ -44,6 +44,30 @@ df_g25  = pandas.read_excel("data/tab_lhfa_girls_p_2_5.xlsx")
 df_b520 = pandas.read_excel("data/hfa-boys-perc-who2007-exp.xlsx")
 df_g520 = pandas.read_excel("data/hfa-girls-perc-who2007-exp.xlsx")
 
+GROWTH_CURVE_COLUMNS = ['P3', 'P15', 'P50', 'P85', 'P97']
+
+
+def build_growth_curves(gender):
+    dfs = (
+        [df_b02, df_b25, df_b520] if gender == 'male'
+        else [df_g02, df_g25, df_g520]
+    )
+    curves = {p: [] for p in GROWTH_CURVE_COLUMNS}
+    seen_months = set()
+    for df in dfs:
+        for _, row in df.iterrows():
+            month = row['Month']
+            if month in seen_months:
+                continue
+            seen_months.add(month)
+            age_years = round(month / 12, 4)
+            for p in GROWTH_CURVE_COLUMNS:
+                curves[p].append({'x': age_years, 'y': float(row[p])})
+    return curves
+
+
+GROWTH_CURVES = {'male': build_growth_curves('male'), 'female': build_growth_curves('female')}
+
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -142,6 +166,16 @@ def compute_percentile(height, weeks, months, gender):
     i = bisect_left(heights, float(height))
     col_idx = min(i + 5, len(df.columns) - 1)
     return str(df.columns[col_idx])
+
+
+PERCENTILE_LABEL_VALUES = {
+    'P01': 0.1, 'P1': 1, 'P3': 3, 'P5': 5, 'P10': 10, 'P15': 15, 'P25': 25,
+    'P50': 50, 'P75': 75, 'P85': 85, 'P90': 90, 'P95': 95, 'P97': 97, 'P99': 99, 'P999': 99.9,
+}
+
+
+def percentile_label_to_value(label):
+    return PERCENTILE_LABEL_VALUES.get(label)
 
 
 def format_age_between(birth_date, ref_date):
@@ -284,7 +318,7 @@ def child_history(child_id):
     child_row = (
         supabase.table("children")
         .select("*")
-        .eq("id", child_id)
+        .eq("child_id", child_id)
         .eq("user_id", current_user.id)
         .maybe_single()
         .execute()
@@ -311,14 +345,18 @@ def child_history(child_id):
         except ValueError:
             rec_date = datetime.strptime(rec['date'], '%m-%d-%Y').date()
         days = (rec_date - birth_date).days
+        percentile_label = compute_percentile(rec['height'], days // 7, days // 30, child['gender'])
         records.append({
             'date': rec_date.strftime('%Y-%m-%d'),
             'height': rec['height'],
             'age': format_age_between(birth_date, rec_date),
-            'percentile': compute_percentile(rec['height'], days // 7, days // 30, child['gender']) or 'N/A',
+            'age_years': round(days / 365.25, 3),
+            'percentile': percentile_label or 'N/A',
+            'percentile_value': percentile_label_to_value(percentile_label),
         })
 
-    return render_template('child.html', child=child, records=records)
+    growth_curves = GROWTH_CURVES.get(child['gender'], {})
+    return render_template('child.html', child=child, records=records, growth_curves=growth_curves)
 
 
 @app.route('/child/<int:child_id>/add', methods=['POST'])
@@ -331,7 +369,7 @@ def add_measurement(child_id):
     child_row = (
         supabase.table("children")
         .select("*")
-        .eq("id", child_id)
+        .eq("child_id", child_id)
         .eq("user_id", current_user.id)
         .maybe_single()
         .execute()
@@ -354,7 +392,7 @@ def add_measurement(child_id):
     response = (
         supabase.table("children")
         .select("height")
-        .eq("id", child_id)
+        .eq("child_id", child_id)
         .single()
         .execute()
     )
@@ -364,7 +402,7 @@ def add_measurement(child_id):
         response = (
             supabase.table("children")
             .update({"height": height})
-            .eq("id", child_id)
+            .eq("child_id", child_id)
             .execute()
         )
 
@@ -401,7 +439,7 @@ def form():
         .insert({"user_id": current_user.id, "name": name, "birthday": birthday, "gender": gender, "height": height})
         .execute()
     )
-    child_id = response.data[0]["id"]
+    child_id = response.data[0]["child_id"]
     response = (
         supabase.table("records")
         .insert({"child_id": child_id, "height": height, "date": date.today().strftime('%Y-%m-%d')})
@@ -415,7 +453,23 @@ def form():
 @app.route('/chatbot', methods=['GET'])
 @login_required
 def chatbot():
-    return render_template('chatbot.html')
+    # Table chat_history has columns user_id, message_id, message
+    # Each field is self-explanatory
+    # message is jsonb type that would contain {"role": ..., "content": ...} object
+
+    response = (
+        supabase.table("chat_history")
+        .select("message")
+        .eq("user_id", current_user.id)
+        .order("message_id", desc=False)
+        .execute()
+    )
+
+    # Each stored `message` is a {"role": ..., "content": ...} object,
+    # which is exactly the shape the frontend and the LLM expect.
+    history = [msg["message"] for msg in response.data]
+
+    return render_template('chatbot.html', history=history)
 
 
 @app.route('/chatbot/send', methods=['POST'])
@@ -437,7 +491,7 @@ def chatbot_send():
         records_rows = (
             supabase.table("records")
             .select("*")
-            .eq("child_id", child['id'])
+            .eq("child_id", child['child_id'])
             .order("date", desc=False)
             .execute()
         )
@@ -476,7 +530,19 @@ def chatbot_send():
         messages=messages,
     )
 
-    return jsonify({"reply": response.choices[0].message.content})
+    reply = response.choices[0].message.content
+
+    # Persist this exchange so it can be reloaded next time the page opens.
+    response = (
+        supabase.table("chat_history")
+        .insert([
+            {"user_id": current_user.id, "message": {"role": "user", "content": user_message}},
+            {"user_id": current_user.id, "message": {"role": "assistant", "content": reply}},
+        ])
+        .execute()
+    )
+
+    return jsonify({"reply": reply})
 
 if __name__ == '__main__':
     # init_db()

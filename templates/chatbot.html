@@ -8,10 +8,17 @@
 
     <!-- Message list -->
     <div id="messages" class="flex-grow-1 overflow-y-auto d-flex flex-column gap-2 mb-3 pe-1">
+        {% if not history %}
         <div class="align-self-start bg-white border rounded-3 px-3 py-2" style="max-width:75%">
             Hi! I'm your child growth assistant. I have access to your children's height records and WHO growth data.
             Ask me anything about their growth, percentiles, or what to expect next!
         </div>
+        {% else %}
+        {% for msg in history %}
+        <div class="{{ 'align-self-end bg-warning' if msg.role == 'user' else 'align-self-start bg-white border' }} rounded-3 px-3 py-2"
+            style="max-width:75%; white-space:pre-wrap;">{{ msg.content }}</div>
+        {% endfor %}
+        {% endif %}
     </div>
 
     <!-- Input bar -->
@@ -31,7 +38,9 @@
     const inputEl    = document.getElementById('user-input');
     const sendBtn    = document.getElementById('send-btn');
 
-    const history = [];
+    const history = {{ history|tojson }};
+
+    messagesEl.scrollTop = messagesEl.scrollHeight;
 
     function appendMessage(role, text) {
         const div = document.createElement('div');

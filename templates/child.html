@@ -16,9 +16,16 @@
 </div>
 
 <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-3">Growth chart</div>
+    <div class="card-body">
+        <canvas id="growthChart" height="120"></canvas>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white fw-semibold py-3">Add measurement</div>
     <div class="card-body">
-        <form method="post" action="/child/{{ child.id }}/add" class="row g-3 align-items-end">
+        <form method="post" action="/child/{{ child.child_id }}/add" class="row g-3 align-items-end">
             <div class="col-sm-4">
                 <label class="form-label">Date</label>
                 <input type="date" class="form-control" name="date" required>
@@ -69,4 +76,64 @@
     <div class="card-body text-muted">No measurements recorded yet.</div>
     {% endif %}
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    const growthCurves = {{ growth_curves|tojson }};
+    const records = {{ records|tojson }};
+
+    const curveColors = {
+        P3:  '#dc3545',
+        P15: '#fd7e14',
+        P50: '#198754',
+        P85: '#fd7e14',
+        P97: '#dc3545',
+    };
+
+    const curveDatasets = Object.entries(growthCurves).map(([label, points]) => ({
+        label,
+        data: points,
+        borderColor: curveColors[label] || '#adb5bd',
+        borderWidth: label === 'P50' ? 2 : 1,
+        borderDash: label === 'P50' ? [] : [5, 3],
+        pointRadius: 0,
+        tension: 0.3,
+    }));
+
+    const childDataset = {
+        type: 'scatter',
+        label: '{{ child.name }}',
+        data: records.map(r => ({ x: r.age_years, y: r.height })),
+        borderColor: '#0d6efd',
+        backgroundColor: '#0d6efd',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        showLine: false,
+    };
+
+    new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: { datasets: [...curveDatasets, childDataset] },
+        options: {
+            scales: {
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: 19,
+                    title: { display: true, text: 'Age (years)' },
+                },
+                y: {
+                    title: { display: true, text: 'Height (cm)' },
+                },
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} cm at ${ctx.parsed.x.toFixed(2)} yr`,
+                    },
+                },
+            },
+        },
+    });
+</script>
 {% endblock %}
