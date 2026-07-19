@@ -7,3 +7,4 @@ supabase==2.31.0
 openai==2.38.0
 python-dotenv==1.2.2
 gunicorn
+uv
