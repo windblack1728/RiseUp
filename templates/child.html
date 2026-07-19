@@ -28,12 +28,13 @@
         <form method="post" action="/child/{{ child.child_id }}/add" class="row g-3 align-items-end">
             <div class="col-sm-4">
                 <label class="form-label">Date</label>
-                <input type="date" class="form-control" name="date" required>
+                <input type="date" class="form-control" name="date1" required>
             </div>
             <div class="col-sm-4">
                 <label class="form-label">Height (cm)</label>
-                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height" required>
+                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height1" required>
             </div>
+            <input type="hidden" name="numberOfRows" value="{{ records|length }}">
             <div class="col-sm-4">
                 <button type="submit" class="btn btn-warning w-100">Save</button>
             </div>
@@ -52,6 +53,7 @@
                     <th>Age at measurement</th>
                     <th>Height</th>
                     <th>WHO percentile</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -67,14 +69,59 @@
                         <span class="text-muted">N/A</span>
                         {% endif %}
                     </td>
+                    <td class="text-end">
+                        <button class="btn btn-warning btn-sm edit"><i class="bi bi-pencil text-white"></i></button>
+                        <button class="btn btn-danger btn-sm delete" data-bs-toggle="modal" data-bs-target="#delete"><i class="bi bi-x-lg text-white"></i></button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        
+        <div class="modal fade" id="delete" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="exampleModalLabel">Are you sure you want to delete this entry?</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+
+                <form method="post" action="/child/{{ child.child_id }}/delete">
+                <input type="hidden" id="relativeIdDelete" name="relativeIdDelete" value="0">
+                <button type="submit" class="btn btn-danger">Yes</button>
+                </form>
+            </div>
+            </div>
+        </div>
+        </div>
     </div>
     {% else %}
     <div class="card-body text-muted">No measurements recorded yet.</div>
     {% endif %}
+</div>
+
+<div class="position-fixed w-100 h-100 top-0 start-0 end-0 bottom-0 bg-black opacity-50 z-2 d-none" style="cursor: pointer" id="overlayBackground">
+</div>
+<div class="card border-0 shadow-sm mb-4 position-fixed top-50 start-50 translate-middle z-3 w-50 d-none" id="overlayCard">
+    <div class="card-header bg-white fw-semibold py-3">Edit measurement</div>
+    <div class="card-body">
+        <form method="post" action="/child/{{ child.child_id }}/edit" class="row g-3 align-items-end">
+            <div class="col-sm-4">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-control" name="date2" required>
+            </div>
+            <div class="col-sm-4">
+                <label class="form-label">Height (cm)</label>
+                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height2" required>
+            </div>
+            <input type="hidden" id="relativeId" name="relativeId" value="0">
+            <div class="col-sm-4">
+                <button type="submit" class="btn btn-warning w-100">Save</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -135,5 +182,28 @@
             },
         },
     });
+
+    const editButtons = document.querySelectorAll(".edit");
+
+    for(let i = 0; i < editButtons.length; i++){
+        editButtons[i].addEventListener("click", function (){
+            document.getElementById("overlayBackground").classList.remove("d-none")
+            document.getElementById("overlayCard").classList.remove("d-none")
+            document.getElementById("relativeId").value = records[i].relative_id;
+        });
+    }
+
+    const deleteButtons = document.querySelectorAll(".delete");
+
+    for(let i = 0; i < deleteButtons.length; i++){
+        deleteButtons[i].addEventListener("click", function (){
+            document.getElementById("relativeIdDelete").value = records[i].relative_id;
+        });
+    }
+
+    document.getElementById("overlayBackground").addEventListener("click", function(){
+        document.getElementById("overlayBackground").classList.add("d-none")
+        document.getElementById("overlayCard").classList.add("d-none")
+    })
 </script>
 {% endblock %}

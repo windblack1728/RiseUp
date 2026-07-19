@@ -196,6 +196,24 @@ def format_age(birthday_str):
     return format_age_between(birth_date, date.today())
 
 
+def updateHeight(child_id):
+    rows = (
+        supabase.table("records")
+        .select("height")
+        .eq("child_id", child_id)
+        .order("date", desc=True)
+        .execute()
+    )
+
+    latest_height = float(rows.data[0]["height"])
+
+    response = (
+        supabase.table("children")
+        .update({"height": latest_height})
+        .eq("child_id", child_id)
+        .execute()
+    )
+
 # Auth routes
 
 
@@ -353,6 +371,7 @@ def child_history(child_id):
             'age_years': round(days / 365.25, 3),
             'percentile': percentile_label or 'N/A',
             'percentile_value': percentile_label_to_value(percentile_label),
+            'relative_id': rec['relative_id']
         })
 
     growth_curves = GROWTH_CURVES.get(child['gender'], {})
@@ -377,15 +396,16 @@ def add_measurement(child_id):
     if not child_row:
         return "Not found", 404
 
-    height = float(request.form['height'])
-    meas_date = request.form['date']
+    height = float(request.form['height1'])
+    meas_date = request.form['date1']
+    numberOfRows = int(request.form['numberOfRows'])
 
     # with sqlite3.connect('db/riseup.db') as conn:
     #     conn.execute('INSERT INTO records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
     #     conn.execute('UPDATE children SET height=? WHERE id=?', (height, child_id))
     response = (
         supabase.table("records")
-        .insert({"child_id": child_id, "height": height, "date": meas_date})
+        .insert({"child_id": child_id, "relative_id": (numberOfRows+1), "height": height, "date": meas_date})
         .execute()
     )
 
@@ -406,6 +426,87 @@ def add_measurement(child_id):
             .execute()
         )
 
+    return redirect(url_for('child_history', child_id=child_id))
+
+@app.route('/child/<int:child_id>/edit', methods=['POST'])
+@login_required
+def edit_measurement(child_id):
+    child_row = (
+        supabase.table("children")
+        .select("*")
+        .eq("child_id", child_id)
+        .eq("user_id", current_user.id)
+        .maybe_single()
+        .execute()
+    )
+    if not child_row:
+        return "Not found", 404
+
+    height = float(request.form['height2'])
+    meas_date = request.form['date2']
+    rel_id = int(request.form['relativeId'])
+
+    # with sqlite3.connect('db/riseup.db') as conn:
+    #     conn.execute('INSERT INTO records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
+    #     conn.execute('UPDATE children SET height=? WHERE id=?', (height, child_id))
+    response = (
+        supabase.table("records")
+        .update({"height": height, "date": meas_date})
+        .eq("child_id", child_id)
+        .eq("relative_id", rel_id)
+        .execute()
+    )
+
+    # height update
+
+    response = (
+        supabase.table("children")
+        .select("height")
+        .eq("child_id", child_id)
+        .single()
+        .execute()
+    )
+
+    latest_height = response.data["height"]
+    if latest_height < height:
+        response = (
+            supabase.table("children")
+            .update({"height": height})
+            .eq("child_id", child_id)
+            .execute()
+        )
+
+    return redirect(url_for('child_history', child_id=child_id))
+
+
+@app.route('/child/<int:child_id>/delete', methods=['POST'])
+@login_required
+def delete_measurement(child_id):
+    child_row = (
+        supabase.table("children")
+        .select("*")
+        .eq("child_id", child_id)
+        .eq("user_id", current_user.id)
+        .maybe_single()
+        .execute()
+    )
+    if not child_row:
+        return "Not found", 404
+
+    rel_id = int(request.form['relativeIdDelete'])
+
+    # with sqlite3.connect('db/riseup.db') as conn:
+    #     conn.execute('INSERT INTO records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
+    #     conn.execute('UPDATE children SET height=? WHERE id=?', (height, child_id))
+    response = (
+        supabase.table("records")
+        .delete()
+        .eq("child_id", child_id)
+        .eq("relative_id", rel_id)
+        .execute()
+    )
+
+    updateHeight(child_id)
     return redirect(url_for('child_history', child_id=child_id))
 
 
@@ -543,6 +644,11 @@ def chatbot_send():
     )
 
     return jsonify({"reply": reply})
+
+@app.route('/resources', methods=['GET'])
+@login_required
+def resources():
+    return render_template('resources.html')
 
 if __name__ == '__main__':
     # init_db()
