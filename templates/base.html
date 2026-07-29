@@ -20,13 +20,10 @@
             {% if current_user.is_authenticated %}
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link {% block nav_home %}{% endblock %}" href="/home">Home</a>
+                    <a class="nav-link {% block nav_dashboard %}{% endblock %}" href="/dashboard">Dashboard</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% block nav_form %}{% endblock %}" href="/form">Add Child</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% block nav_chatbot %}{% endblock %}" href="/chatbot">AI Chatbot</a>
+                    <a class="nav-link {% block nav_assistant %}{% endblock %}" href="/assistant">AI Nutrition Assistant</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% block nav_resources %}{% endblock %}" href="/resources">Resources</a>

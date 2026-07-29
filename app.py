@@ -214,13 +214,27 @@ def updateHeight(child_id):
         .execute()
     )
 
+
+def checkIfMyChild(child_id):
+    child_row = (
+        supabase.table("children")
+        .select("*")
+        .eq("child_id", child_id)
+        .eq("user_id", current_user.id)
+        .maybe_single()
+        .execute()
+    )
+    if not child_row:
+        return "Not found", 404
+    return child_row
+
 # Auth routes
 
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('home'))
+        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         email = request.form['email'].strip().lower()
@@ -264,7 +278,7 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('home'))
+        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         email = request.form['email'].strip().lower()
@@ -287,7 +301,7 @@ def login():
         # Guard against open-redirect attacks
         if next_page and urlparse(next_page).netloc != '':
             next_page = None
-        return redirect(next_page or url_for('home'))
+        return redirect(next_page or url_for('dashboard'))
 
     return render_template('login.html', email='')
 
@@ -307,9 +321,9 @@ def landing():
     return render_template('landing.html')
 
 
-@app.route('/home')
+@app.route('/dashboard')
 @login_required
-def home():
+def dashboard():
     # rows = query_db('SELECT * FROM children WHERE user_id=? ORDER BY name', (current_user.id,))
     rows = (
         supabase.table("children")
@@ -323,7 +337,7 @@ def home():
         child = dict(row)
         child['age_display'] = format_age(child['birthday'])
         children.append(child)
-    return render_template('home.html', children=children)
+    return render_template('dashboard.html', children=children)
 
 
 @app.route('/child/<int:child_id>')
@@ -333,16 +347,7 @@ def child_history(child_id):
     #     'SELECT * FROM children WHERE id=? AND user_id=?',
     #     (child_id, current_user.id), one=True
     # )
-    child_row = (
-        supabase.table("children")
-        .select("*")
-        .eq("child_id", child_id)
-        .eq("user_id", current_user.id)
-        .maybe_single()
-        .execute()
-    )
-    if not child_row:
-        return "Not found", 404
+    child_row = checkIfMyChild(child_id)
 
     child = dict(child_row.data)
     child['age_display'] = format_age(child['birthday'])
@@ -375,7 +380,7 @@ def child_history(child_id):
         })
 
     growth_curves = GROWTH_CURVES.get(child['gender'], {})
-    return render_template('child.html', child=child, records=records, growth_curves=growth_curves)
+    return render_template('child.html', child=child, records=records, growth_curves=growth_curves, modal={'type': 'none'})
 
 
 @app.route('/child/<int:child_id>/add', methods=['POST'])
@@ -385,20 +390,13 @@ def add_measurement(child_id):
     #     'SELECT * FROM children WHERE id=? AND user_id=?',
     #     (child_id, current_user.id), one=True
     # )
-    child_row = (
-        supabase.table("children")
-        .select("*")
-        .eq("child_id", child_id)
-        .eq("user_id", current_user.id)
-        .maybe_single()
-        .execute()
-    )
-    if not child_row:
-        return "Not found", 404
+    child_row = checkIfMyChild(child_id)
 
-    height = float(request.form['height1'])
-    meas_date = request.form['date1']
+    height = float(request.form['height'])
+    meas_date = request.form['date']
     numberOfRows = int(request.form['numberOfRows'])
+    if numberOfRows is None:
+        numberOfRows = 0
 
     # with sqlite3.connect('db/riseup.db') as conn:
     #     conn.execute('INSERT INTO records (child_id, height, date) VALUES (?,?,?)', (child_id, height, meas_date))
@@ -431,19 +429,10 @@ def add_measurement(child_id):
 @app.route('/child/<int:child_id>/edit', methods=['POST'])
 @login_required
 def edit_measurement(child_id):
-    child_row = (
-        supabase.table("children")
-        .select("*")
-        .eq("child_id", child_id)
-        .eq("user_id", current_user.id)
-        .maybe_single()
-        .execute()
-    )
-    if not child_row:
-        return "Not found", 404
+    child_row = checkIfMyChild(child_id)
 
-    height = float(request.form['height2'])
-    meas_date = request.form['date2']
+    height = float(request.form['height'])
+    meas_date = request.form['date']
     rel_id = int(request.form['relativeId'])
 
     # with sqlite3.connect('db/riseup.db') as conn:
@@ -482,16 +471,7 @@ def edit_measurement(child_id):
 @app.route('/child/<int:child_id>/delete', methods=['POST'])
 @login_required
 def delete_measurement(child_id):
-    child_row = (
-        supabase.table("children")
-        .select("*")
-        .eq("child_id", child_id)
-        .eq("user_id", current_user.id)
-        .maybe_single()
-        .execute()
-    )
-    if not child_row:
-        return "Not found", 404
+    child_row = checkIfMyChild(child_id)
 
     rel_id = int(request.form['relativeIdDelete'])
 
@@ -551,9 +531,9 @@ def form():
     return render_template('result.html', name=name, height=height, percentile=percentile, child_id=child_id)
 
 
-@app.route('/chatbot', methods=['GET'])
+@app.route('/assistant', methods=['GET'])
 @login_required
-def chatbot():
+def assistant():
     # Table chat_history has columns user_id, message_id, message
     # Each field is self-explanatory
     # message is jsonb type that would contain {"role": ..., "content": ...} object
@@ -570,12 +550,12 @@ def chatbot():
     # which is exactly the shape the frontend and the LLM expect.
     history = [msg["message"] for msg in response.data]
 
-    return render_template('chatbot.html', history=history)
+    return render_template('assistant.html', history=history)
 
 
-@app.route('/chatbot/send', methods=['POST'])
+@app.route('/assistant/send', methods=['POST'])
 @login_required
-def chatbot_send():
+def assistant_send():
     data = request.get_json()
     user_message = data.get('message', '').strip()
     history = data.get('history', [])

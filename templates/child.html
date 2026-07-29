@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="mb-3">
-    <a href="/home" class="text-decoration-none text-muted">&larr; Back to children</a>
+    <a href="/dashboard" class="text-decoration-none text-muted">&larr; Back to children</a>
 </div>
 
 <div class="mb-4">
@@ -15,6 +15,23 @@
     </p>
 </div>
 
+<ul class="nav nav-pills mb-4" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active" id="growth-tab" data-bs-toggle="tab" role="tab" aria-controls="growth" href="#growth">Growth</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="nutrition-tab" data-bs-toggle="tab" role="tab" aria-controls="nutrition" href="#nutrition">Nutrition</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="report-tab" data-bs-toggle="tab" role="tab" aria-controls="report" href="#report">AI Report</a>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+<!-- [Growth] tab -->
+
+<div class="tab-pane fade show active" id="growth" role="tabpanel">
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white fw-semibold py-3">Growth chart</div>
     <div class="card-body">
@@ -28,21 +45,21 @@
         <form method="post" action="/child/{{ child.child_id }}/add" class="row g-3 align-items-end">
             <div class="col-sm-4">
                 <label class="form-label">Date</label>
-                <input type="date" class="form-control" name="date1" required>
+                <input type="date" class="form-control" name="date" id="date_height" required>
             </div>
             <div class="col-sm-4">
                 <label class="form-label">Height (cm)</label>
-                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height1" required>
+                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height" required>
             </div>
             <input type="hidden" name="numberOfRows" value="{{ records|length }}">
             <div class="col-sm-4">
-                <button type="submit" class="btn btn-warning w-100">Save</button>
+                <button type="submit" class="btn btn-success w-100">Save</button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white fw-semibold py-3">Height history</div>
     {% if records %}
     <div class="table-responsive">
@@ -110,24 +127,120 @@
         <form method="post" action="/child/{{ child.child_id }}/edit" class="row g-3 align-items-end">
             <div class="col-sm-4">
                 <label class="form-label">Date</label>
-                <input type="date" class="form-control" name="date2" required>
+                <input id="editDate" type="date" class="form-control" name="date" required>
             </div>
             <div class="col-sm-4">
                 <label class="form-label">Height (cm)</label>
-                <input type="number" step="0.1" min="30" max="250" class="form-control" name="height2" required>
+                <input id="editHeight" type="number" step="0.1" min="30" max="250" class="form-control" name="height" required>
             </div>
             <input type="hidden" id="relativeId" name="relativeId" value="0">
             <div class="col-sm-4">
-                <button type="submit" class="btn btn-warning w-100">Save</button>
+                <button type="submit" class="btn btn-success w-100">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+
+<!-- [Nutrition] Tab -->
+
+<div class="tab-pane fade" id="nutrition" role="tabpanel">
+
+<div class="card shadow-sm mb-4 border border-info bg-info bg-opacity-10 border-2">
+    <div class="card-header bg-white fw-semibold py-3">
+        <i class="bi bi-hexagon-half text-info h4"></i> AI Overview
+    </div>
+    <div class="card-body">
+        Overview
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-3">
+        Nutrition Dashboard
+    </div>
+    <div class="card-body">
+        Kaboom
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-3">
+        Food history
+    </div>
+    <div class="card-body">
+        History
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-3">
+        Add meal
+    </div>
+    <div class="card-body">
+        <form method="POST" action="/child/{{ child.child_id }}/food/upload" class="row g-3 align-items-end" enctype="multipart/form-data">
+            <div class="col-sm-3">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-control" name="date" id="date_food" required>
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label">Meal type</label>
+                <select class="form-select" name="meal_type" required>
+                    <option disabled selected value="">Choose the meal type</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="snack">Snack</option>
+                    <option value="dinner">Dinner</option>
+                </select>
+            </div>
+            <div class="col-sm-3">
+                <img id="preview" src="#" style="max-width: 100px; display: none;"/>
+                <label class="form-label" for="mealPhoto">Attach a meal photo</label>
+                <input type="file" id="mealPhoto" name="mealPhoto" accept="image/*" required/>
+            </div>
+            <!-- <input type="hidden" name="numberOfRows" value="{{ records|length }}"> -->
+            <div class="col-sm-3">
+                <button type="submit" class="btn btn-warning w-100">Add</button>
             </div>
         </form>
     </div>
 </div>
 
+<div class="modal fade" id="review" tabindex="-1" aria-labelledby="reviewModal" aria-hidden="true">
+<div class="modal-dialog">
+    <div class="modal-content">
+    <div class="modal-header">
+        <h1 class="modal-title fs-5" id="reviewModal">Food Review</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+        AI identified following items in food:
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Dismiss</button>
+
+        <form method="post" action="/child/{{ child.child_id }}/food/confirm">
+        <button type="submit" class="btn btn-warning">Submit</button>
+        </form>
+    </div>
+    </div>
+</div>
+</div>
+
+</div>
+
+<!-- [Overview] Tab -->
+
+<div class="tab-pane fade" id="report" role="tabpanel">
+    Some AI report
+</div>
+
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
     const growthCurves = {{ growth_curves|tojson }};
     const records = {{ records|tojson }};
+    const modal = {{ modal|tojson }};
 
     const curveColors = {
         P3:  '#dc3545',
@@ -183,15 +296,40 @@
         },
     });
 
+    // Buttons [Growth], [Nutrition], [Report] work on reload
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const hash = window.location.hash;
+
+        if (hash) {
+            const trigger = document.querySelector(`a[href="${hash}"]`);
+            if (trigger) {
+                bootstrap.Tab.getOrCreateInstance(trigger).show();
+            }
+        }
+
+        document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener("shown.bs.tab", function (e) {
+                history.replaceState(null, "", e.target.getAttribute("href"));
+            });
+        });
+    });
+
+    // Edit buttons
+
     const editButtons = document.querySelectorAll(".edit");
 
     for(let i = 0; i < editButtons.length; i++){
         editButtons[i].addEventListener("click", function (){
-            document.getElementById("overlayBackground").classList.remove("d-none")
-            document.getElementById("overlayCard").classList.remove("d-none")
+            document.getElementById("overlayBackground").classList.remove("d-none");
+            document.getElementById("overlayCard").classList.remove("d-none");
             document.getElementById("relativeId").value = records[i].relative_id;
+            document.getElementById("editDate").valueAsDate = new Date(records[i].date);
+            document.getElementById("editHeight").value = records[i].height;
         });
     }
+
+    // Delete buttons
 
     const deleteButtons = document.querySelectorAll(".delete");
 
@@ -201,9 +339,44 @@
         });
     }
 
+    // Edit overlay working propertly
+
     document.getElementById("overlayBackground").addEventListener("click", function(){
-        document.getElementById("overlayBackground").classList.add("d-none")
-        document.getElementById("overlayCard").classList.add("d-none")
-    })
+        document.getElementById("overlayBackground").classList.add("d-none");
+        document.getElementById("overlayCard").classList.add("d-none");
+    });
+
+    // Date is today
+
+    document.getElementById('date_height').valueAsDate = new Date();
+    document.getElementById('date_food').valueAsDate = new Date();
+
+    // Attached file is a photo
+
+    mealPhoto = document.getElementById('mealPhoto');
+    preview = document.getElementById('preview');
+    mealPhoto.addEventListener("change", function(){
+        const file = mealPhoto.files[0];
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif'];
+
+        if(file){
+            if(!allowedTypes.includes(file.type)){
+                alert('Invalid file format!');
+                preview.src = '#';
+                this.value = '';
+                preview.style.display = 'none';
+            }else{
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+            }
+        }
+    });
+
+    // Modal pop up window just in case
+
+    const myModal = new bootstrap.Modal(document.getElementById("review"));
+    if(modal.type === "review"){
+        myModal.show();
+    }
 </script>
 {% endblock %}

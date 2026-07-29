@@ -28,4 +28,6 @@ supabase-py quirks: `.maybe_single().execute()` returns a falsy value when no ro
 
 ## Deploy
 
-Docker → Cloud Run (gunicorn, `$PORT`); `vercel.json` also present. Keep `app.py` importable as `app:app`.
+`vercel.json` also present. Keep `app.py` importable as `app:app`.
+
+Vercel CI/CD pipeline configured; when the changes are pushed to repo, the deployment is made automatically. 
